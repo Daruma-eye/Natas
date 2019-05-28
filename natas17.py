@@ -9,7 +9,7 @@ from time import sleep
 from time import time
 from requests import get                # ==>  per fare richieste get
 from urllib.parse import quote          # ==>  per fare codificare l'injection in codifica URL 
-alpha_numeric  = ascii_letters + digits + '{}'
+alpha_numeric  = ascii_letters + digits
 delay          = 0.1
 sleep_sec      = 1
 
